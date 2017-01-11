@@ -1,2 +1,2 @@
 # PDO FUNCTIONS
-Some php-pdo basic functions
+A PHP class to easily retrieve information from a database
