@@ -60,6 +60,7 @@ class Database {
 		/*
 		*	This method will ensure the table is unique. It will only insert a record if it does not already exist.
 		*/
+
 		foreach($data as $key => $d) {
 			$exists = false;
 
@@ -73,6 +74,11 @@ class Database {
 				return false;
 			}
 		}
+
+		$this->insert($table, $data);
+	}
+
+	public function insert($table, array $data) {
 
 		$query = "insert into " . $table . "(";
 		$i=1;
@@ -117,6 +123,27 @@ class Database {
 			return false;
 		}
 
+	}
+
+	public function update($table, array $options) {
+		$query = "update ".$table." set ".$options['field']." = :".$options['field']." where id = ".$options['id'];
+
+		$stmt = $this->conn->prepare($query);
+		if(isset($options['type'])) {
+			$stmt->bindValue(':'.$options['field'], $options['value'], $this->convertType($options['type']));
+		} else {
+			$stmt->bindValue(':'.$options['field'], $options['value'], $this->convertType('string'));
+		}
+		$stmt->execute();
+	}
+
+	public function multiUpdate($table, array $identifiers, array $data) {
+		foreach($identifiers as $id) {
+			$this->update($table, [
+				'id' => $id,
+				$data,
+			]);
+		}
 	}
 
 	public function customPreparedQuery($query) {
