@@ -5,12 +5,14 @@ class Database {
 	protected $db;
 	protected $user;
 	protected $password;
+	protected $debug;
 
-	public function __construct($server, $db, $user, $password) {
+	public function __construct($server, $db, $user, $password, $debug = false) {
 		$this->server = $server;
 		$this->db = $db;
 		$this->user = $user;
 		$this->password = $password;
+		$this->debug = $debug;
 		$this->conn = $this->connection();
 	}
 
@@ -24,7 +26,10 @@ class Database {
 
 			return $conn;
 		} catch(Exception $e) {
-			echo $e->getMessage();
+			if($this->debug) {
+				echo $e->getMessage();
+			}
+			return NULL;
 		}
 	}
 
@@ -38,20 +43,149 @@ class Database {
 		}
 	}
 
+	public function checkOperator($operator) {
+		$operator = strtolower($operator);
+
+		if($operator != 'or' && $operator != 'and') {
+			$operator = 'and';
+		}
+
+		return $operator;
+	}
+
+	public function checkOrder($order) {
+		$order = strtolower($order);
+
+		if($order != 'desc' && $order != 'asc') {
+			$order = 'asc';
+		}
+
+		return $order;
+	}
+
+	public function get($table, $options = []) {
+		$filter = false;
+		$query = "select ";
+
+		if(isset($options['type'])) {
+			if(is_array($options['type'])) {
+				$i = 1;
+				foreach($options['type'] as $t) {
+					$query .= $t;
+					if($i < count($options['type'])) {
+						$query .= ", ";
+					}
+					$i++;
+				}
+			} else {
+				$query .= $options['type'];
+			}
+		} else {
+			$query .= "*";
+		}
+		$query .= " from ".$table;
+		if(isset($options['filter'])) {
+			if(is_array($options['filter'])) {
+					$i = 1;
+					$filter = true;
+					$query .= " where";
+					foreach($options['filter'] as $k => $f) {
+						if(isset($f['search']) && $f['search'] == true) {
+							$query .= " ".$k." LIKE :".$k;
+						} else {
+							$query .= " ".$k." = :".$k;
+						}
+						if($i < count($options['filter'])) {
+							if(is_array($f) && isset($f['operator'])) {
+								$query .= " ".$this->checkOperator($f['operator']);
+							} else {
+								$query .= " and";
+							}
+						}
+						$i++;
+					}
+			}
+		}
+		if(isset($options['sort'])) {
+			if(is_array($options['sort'])) {
+				if(isset($options['sort']['by'])) {
+					$query .= " order by ".$options['sort']['by'];
+					if(isset($options['sort']['order'])) {
+						$query .= " ".$this->checkOrder($options['sort']['order']);
+					}
+				}
+			}
+		}
+		if(isset($options['count'])) {
+			$query .= " limit ".$options['count'];
+		}
+
+			try {
+				$stmt = $this->conn->prepare($query);
+				if($filter) {
+					foreach($options['filter'] as $k => $f) {
+						if(isset($f['type'])) {
+
+							if(isset($f['search']) && $f['search'] == true) {
+								$stmt->bindValue(':'.$k, '%'.$f['value'].'%', $this->convertType($f['type']));
+							} else {
+								$stmt->bindValue(':'.$k, $f['value'], $this->convertType($f['type']));
+							}
+
+						} else {
+
+							if(isset($f['search']) && $f['search'] == true) {
+								$stmt->bindValue(':'.$k, '%'.$f.'%', $this->convertType('default'));
+						  } else {
+								$stmt->bindValue(':'.$k, $f, $this->convertType('default'));
+							}
+
+						}
+					}
+				}
+				$stmt->execute();
+
+				$rows = $stmt->rowCount();
+
+				$data = [];
+				if($rows > 0) {
+					$stmt->setFetchMode(PDO::FETCH_ASSOC);
+
+					$iterator = new IteratorIterator($stmt);
+					foreach($iterator as $k => $d) {
+						$data[][$k] = $d;
+					}
+				}
+
+				return $data;
+		} catch(Exception $e) {
+			if($this->debug) {
+				echo $e->getMessage();
+			}
+			return [];
+		}
+	}
+
 	public function checkIfExists($table, $type, $value) {
 		/*
 		* @return true|false
 		*/
+		try {
+			$stmt = $this->conn->prepare("select ".$type." from ".$table." where ".$type." = :".$type);
+			$stmt->bindValue(':'.$type, $value, $this->convertType('default'));
+			$stmt->execute();
 
-		$stmt = $this->conn->prepare("select ".$type." from ".$table." where ".$type." = :".$type);
-		$stmt->bindValue(':'.$type, PDO::PARAM_STR);
-		$stmt->execute();
+			$returnedRows = $stmt->rowCount();
 
-		$returnedRows = $stmt->rowCount();
-
-		if($returnedRows > 0) {
-			return true;
-		} else {
+			if($returnedRows > 0) {
+				return true;
+			} else {
+				return false;
+			}
+		} catch(Exception $e) {
+			if($this->debug) {
+				echo $e->getMessage();
+			}
 			return false;
 		}
 	}
@@ -110,7 +244,7 @@ class Database {
 				if(is_array($d)) {
 					$stmt->bindValue(':'.$key, $d['value'], $this->convertType($d['type']));
 				} else {
-					$stmt->bindValue(':'.$key, $d, PDO::PARAM_STR);
+					$stmt->bindValue(':'.$key, $d, $this->convertType('default'));
 				}
 				$i++;
 			}
@@ -119,7 +253,9 @@ class Database {
 
 			return true;
 		} catch (Exception $e) {
-			echo $e->getMessage();
+			if($this->debug) {
+				echo $e->getMessage();
+			}
 			return false;
 		}
 
@@ -128,13 +264,22 @@ class Database {
 	public function update($table, array $options) {
 		$query = "update ".$table." set ".$options['field']." = :".$options['field']." where id = ".$options['id'];
 
-		$stmt = $this->conn->prepare($query);
-		if(isset($options['type'])) {
-			$stmt->bindValue(':'.$options['field'], $options['value'], $this->convertType($options['type']));
-		} else {
-			$stmt->bindValue(':'.$options['field'], $options['value'], $this->convertType('string'));
+		try {
+			$stmt = $this->conn->prepare($query);
+			if(isset($options['type'])) {
+				$stmt->bindValue(':'.$options['field'], $options['value'], $this->convertType($options['type']));
+			} else {
+				$stmt->bindValue(':'.$options['field'], $options['value'], $this->convertType('string'));
+			}
+			$stmt->execute();
+
+			return true;
+		} catch(Exception $e) {
+			if($this->debug) {
+				echo $e->getMessage();
+			}
+			return false;
 		}
-		$stmt->execute();
 	}
 
 	public function multiUpdate($table, array $identifiers, array $data) {
@@ -146,17 +291,36 @@ class Database {
 		}
 	}
 
-	public function customPreparedQuery($query) {
-		$this->conn->prepare($query)->execute();
+	public function customQuery($query) {
+		try {
+			$stmt = $this->conn->prepare($query);
+		} catch(Exception $e) {
+			if($this->debug) {
+				echo $e->getMessage();
+			}
+			return false;
+		}
+		if($stmt->execute()) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	public function debug() {
-		echo "SERVER: ".$this->server.PHP_EOL;
-		echo "DATABASE: ".$this->db.PHP_EOL;
-		echo "USER: ".$this->user.PHP_EOL;
-		echo "PASSWORD: ".$this->password.PHP_EOL;
+		$data = [];
+		$data['server'] = $this->server;
+		$data['database'] = $this->db;
+		$data['user'] = $this->user;
+		$data['password'] = $this->password;
+		$data['debug'] = $this->debug;
 		if(is_object($this->conn)) {
-			echo "PDO is Object, connection succeeded!".PHP_EOL;
+			$data['connection'] = true;
+		} else {
+			$data['connection'] = false;
 		}
+
+		return $data;
+
 	}
 }

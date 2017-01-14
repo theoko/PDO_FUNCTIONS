@@ -5,16 +5,54 @@ A PHP class to easily interact with a (MySQL/other) database
 
 <pre>
 
-// Create a new database connection
-$db = new Database('127.0.0.1', 'database', 'user', 'password');
+require_once 'class.database.php';
 
-// Display debug info
+// HOST, DATABASE, USERNAME, PASSWORD, DEBUG(OPTIONAL)
+$db = new Database('localhost', 'database', 'user', 'pass', true);
+
+// ONLY IF DEBUG IS ENABLED -- DISPLAYS SENSITIVE INFO
 $db->debug();
 
-// Execute custom query
-$db->customPreparedQuery("insert into links(title, url) values('Test', 'example.com')");
+/*
+* get data from table 'links' where title(string) = 'Untitled' OR url(string) LIKE '%http%'
+*/
+$data = $db->get('links', [
+  // what should we select -- default: *
+  'type' => [
+    'id',
+    'title',
+    'url',
+  ],
+  'filter' => [
+    'id' => [
+      'type' => 'integer', // type -- optional -- default: string
+      'value' => 1, // value - required
+      'operator' => 'or', // operator: and, or -- optional
+    ],
+    'title' => [
+      'type' => 'string', // type -- optional -- default: string
+      'value' => 'Untitled', // value - required
+      'operator' => 'or', // operator: and, or -- optional
+    ],
+    'url' => [
+      'type' => 'string', // type -- optional -- default: string
+      'value' => 'http', // value - required
+      'search' => true, // enable search (LIKE in sql query)
+    ],
+  ],
+  'sort' => [
+    'by' => 'id', // sort results by id
+    'order' => 'desc', // descending (last first)
+  ],
+  'count' => 10, // how many records should we return (LIMIT)
+]);
 
-// Update
+foreach($data as $key => $d) {
+  var_dump($d);
+}
+
+$db->customQuery("insert into links(title, url) values('Test', 'example.com')");
+
 $db->update('links', [
   'id' => 1,
   'field' => 'url',
@@ -22,15 +60,13 @@ $db->update('links', [
   'type' => 'string', // OPTIONAL
 ]);
 
-// Update many records with the same data
 $db->multiUpdate('links', [1, 2, 3, 4, 5], [
   'field' => 'url',
   'value' => 'example.org',
   'type' => 'string', // OPTIONAL
 ]);
 
-// Insert
-$status = $db->insert('links', [
+$db->insert('links', [
 	'title' => 'Test',
 	'url' => [
 		'type' => 'string', // by default it is 'string', you can use 'integer' as well
@@ -38,7 +74,6 @@ $status = $db->insert('links', [
 	],
 ]);
 
-// Insert will only execute if the record doesn't already exist
 $status = $db->insertOrFail('links', [
 	'title' => 'Test',
 	'url' => [
@@ -47,11 +82,10 @@ $status = $db->insertOrFail('links', [
 	],
 ]);
 
-// Check the status of the above insert
-if ($status) {
-	echo "success";
+if($status) {
+	echo "success"; // it was inserted as it isn't already in the database
 } else {
-	echo "already exists!";
+	echo "exists!"; // it wasn't inserted as it is already in the database
 }
 
 </pre>
