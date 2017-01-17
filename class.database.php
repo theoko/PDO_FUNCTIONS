@@ -7,7 +7,7 @@ class Database {
 	protected $password;
 	protected $debug;
 
-	public function __construct($server, $db, $user, $password, $debug = false) {
+	public function __construct($server, $db = "", $user, $password, $debug = false) {
 		$this->server = $server;
 		$this->db = $db;
 		$this->user = $user;
@@ -22,7 +22,17 @@ class Database {
 
 	public function connection() {
 		try {
-			$conn = new PDO("mysql:host=".$this->server.";dbname=".$this->db, $this->user, $this->password);
+			if(stristr($this->server, ':')) {
+				$server = explode(':', $this->server)[0];
+				$port = explode(':', $this->server)[1];
+				if(empty($this->db)) {
+					$conn = new PDO("mysql:host=".$server.";port=".$port, $this->user, $this->password);
+				} else {
+					$conn = new PDO("mysql:host=".$server.";dbname=".$this->db.";port=".$port, $this->user, $this->password);
+				}
+			} else {
+				$conn = new PDO("mysql:host=".$this->server.";dbname=".$this->db, $this->user, $this->password);
+			}
 
 			return $conn;
 		} catch(Exception $e) {

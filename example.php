@@ -5,6 +5,9 @@ require_once 'class.database.php';
 // HOST, DATABASE, USERNAME, PASSWORD, DEBUG(OPTIONAL)
 $db = new Database('localhost', 'database', 'user', 'pass', true);
 
+// if you are using SphinxQL
+$db = new Database('127.0.0.1', '', '', true);
+
 // ONLY IF DEBUG IS ENABLED -- DISPLAYS SENSITIVE INFO
 $db->debug();
 
