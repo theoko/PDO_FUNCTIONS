@@ -63,6 +63,10 @@ class Database {
 		return $order;
 	}
 
+	public function error(array $error) {
+		throw new Exception($error['message'], 1);
+	}
+
 	public function get($table, $options = []) {
 		$filter = false;
 		$query = "select ";
@@ -262,7 +266,35 @@ class Database {
 	}
 
 	public function update($table, array $options) {
-		$query = "update ".$table." set ".$options['field']." = :".$options['field']." where id = ".$options['id'];
+		$query = "update ";
+		$query .= $table;
+		$query .= " set ";
+		$query .= $options['field'];
+		$query .= " = :".$options['field'];
+		$query .= " where ";
+		if(isset($options['column'])) {
+
+			if(is_array($options['column'])) {
+				foreach($options['column'] as $key => $col) {
+					$id = $key;
+					$id_value = $col;
+				}
+				if(is_numeric($id_value)) {
+					$query .= $id." = ".$id_value;
+				} else {
+					$query .= $id." = '".$id_value."'";
+				}
+
+			} else {
+				throw new Exception("options:column should be an array", 1);
+			}
+
+		} else {
+			if(!isset($options['id'])) {
+				$this->error(['message' => 'if options:column (array) is not set options:id (int) should be set']);
+			}
+			$query .= "id = ".$options['id'];
+		}
 
 		try {
 			$stmt = $this->conn->prepare($query);
@@ -283,11 +315,36 @@ class Database {
 	}
 
 	public function multiUpdate($table, array $identifiers, array $data) {
-		foreach($identifiers as $id) {
-			$this->update($table, [
-				'id' => $id,
-				$data,
-			]);
+		try {
+			foreach($identifiers as $key => $field) {
+				$this->update($table, [
+					$key => $field,
+					'options' => $data,
+				]);
+			}
+			return true;
+		} catch(Exception $e) {
+			if($this->debug) {
+				echo $e->getMessage();
+			}
+			return false;
+		}
+	}
+
+	public function multiUpdateUsingId($table, array $identifiers, array $data) {
+		try {
+			foreach($identifiers as $id) {
+				$this->update($table, [
+					'id' => $id,
+					'options' => $data,
+				]);
+			}
+			return true;
+		} catch(Exception $e) {
+			if($this->debug) {
+				echo $e->getMessage();
+			}
+			return false;
 		}
 	}
 

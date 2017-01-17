@@ -55,7 +55,21 @@ $db->update('links', [
   'type' => 'string', // OPTIONAL
 ]);
 
-$db->multiUpdate('links', [1, 2, 3, 4, 5], [
+// update many records at once
+$db->multiUpdate('links',
+[
+  'id' => 1, // update a record with id = 1
+  'title' => 'Test', // update a record with title = 'Test'
+  'url' => 'example.com' // update a record with url = 'exaple.com'
+],
+[
+  'field' => 'url',
+  'value' => 'example.org',
+  'type' => 'string', // OPTIONAL
+]
+);
+
+$db->multiUpdateUsingId('links', [1, 2, 3, 4, 5], [
   'field' => 'url',
   'value' => 'example.org',
   'type' => 'string', // OPTIONAL
