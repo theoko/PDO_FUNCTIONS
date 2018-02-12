@@ -1,5 +1,4 @@
 # PDO FUNCTIONS
-[Read post on my blog](https://theokonst.tk/php/github-php-library-for-easily-accessing-a-mysql-database/)
 
 A PHP class to easily interact with a (MySQL/other) database
 
